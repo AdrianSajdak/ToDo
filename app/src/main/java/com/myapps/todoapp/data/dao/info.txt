@@ -1,0 +1,1 @@
+Data Access Objects - interfaces for data operations (GET, PUT, DELETE)

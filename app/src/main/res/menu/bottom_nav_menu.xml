@@ -1,0 +1,10 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/tasksListFragment"
+        android:icon="@drawable/ic_tasks_list"
+        android:title="Zadania" />
+    <item
+        android:id="@+id/doneTasksFragment"
+        android:icon="@drawable/ic_done_list"
+        android:title="Wykonane" />
+</menu>
