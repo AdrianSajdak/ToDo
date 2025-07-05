@@ -1,53 +1,79 @@
 package com.myapps.todoapp.data.worker;
 
+import android.app.Application;
 import android.content.Context;
-import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
-import com.myapps.todoapp.data.AppDatabase;
-import com.myapps.todoapp.data.dao.TaskDao;
+import com.myapps.todoapp.data.TaskRepository;
 import com.myapps.todoapp.data.model.Task;
 import java.util.Calendar;
 import java.util.List;
 
 public class RecurringTaskResetWorker extends Worker {
 
-    private static final String TAG = "RecurringTaskReset";
+    private TaskRepository repository;
 
     public RecurringTaskResetWorker(@NonNull Context context, @NonNull WorkerParameters workerParams) {
         super(context, workerParams);
+        repository = new TaskRepository((Application) context.getApplicationContext());
     }
 
     @NonNull
     @Override
     public Result doWork() {
-        Log.d(TAG, "Rozpoczynanie pracy resetowania zadań cyklicznych.");
-        TaskDao taskDao = AppDatabase.getDatabase(getApplicationContext()).taskDao();
-        List<Task> recurringTasks = taskDao.getAllRecurringTasksSync();
-
-        Calendar today = Calendar.getInstance();
-        // Ustaw godzinę na początek dnia, aby uniknąć problemów ze strefami czasowymi
-        today.set(Calendar.HOUR_OF_DAY, 0);
-        today.set(Calendar.MINUTE, 0);
-        today.set(Calendar.SECOND, 0);
-        today.set(Calendar.MILLISECOND, 0);
+        List<Task> recurringTasks = repository.getRecurringTasksSync();
+        long today = getStartOfDay(System.currentTimeMillis());
 
         for (Task task : recurringTasks) {
-            if (task.isCompleted()) {
-                Calendar completionDate = Calendar.getInstance();
-                completionDate.setTimeInMillis(task.getCompletionDate());
-                completionDate.set(Calendar.HOUR_OF_DAY, 0);
-                // Prosta logika dla zadań codziennych
-                if ("DAILY".equals(task.getRecurrenceRule()) && completionDate.before(today)) {
-                    task.setCompleted(false);
-                    taskDao.update(task);
-                    Log.d(TAG, "Zresetowano zadanie: " + task.getTitle());
+            Long lastCompletion = task.getLastRecurrenceCompletionDate();
+            if (lastCompletion == null || getStartOfDay(lastCompletion) < today) {
+                // Sprawdź, czy reguła cykliczności pozwala na odświeżenie dzisiaj
+                if (shouldResetToday(task)) {
+                    task.setCompleted(false); // "Odśwież" zadanie
+                    repository.updateTask(task);
                 }
-                // Tutaj można dodać bardziej złożoną logikę dla "WEEKLY", "MONTHLY" itp.
             }
         }
-        Log.d(TAG, "Zakończono pracę resetowania zadań cyklicznych.");
         return Result.success();
+    }
+
+    private boolean shouldResetToday(Task task) {
+        String rule = task.getRecurrenceRule();
+        if (rule == null) return false;
+        
+        Calendar today = Calendar.getInstance();
+        Long lastCompletion = task.getLastRecurrenceCompletionDate();
+        
+        switch (rule) {
+            case "DAILY":
+                return true; // Codziennie
+            case "WEEKLY":
+                // Co tydzień od dnia utworzenia
+                if (lastCompletion == null) return true;
+                Calendar lastCompletionCal = Calendar.getInstance();
+                lastCompletionCal.setTimeInMillis(lastCompletion);
+                return today.get(Calendar.WEEK_OF_YEAR) > lastCompletionCal.get(Calendar.WEEK_OF_YEAR) ||
+                       today.get(Calendar.YEAR) > lastCompletionCal.get(Calendar.YEAR);
+            case "MONTHLY":
+                // Co miesiąc
+                if (lastCompletion == null) return true;
+                Calendar lastCompletionCalMonth = Calendar.getInstance();
+                lastCompletionCalMonth.setTimeInMillis(lastCompletion);
+                return today.get(Calendar.MONTH) > lastCompletionCalMonth.get(Calendar.MONTH) ||
+                       today.get(Calendar.YEAR) > lastCompletionCalMonth.get(Calendar.YEAR);
+            default:
+                return false;
+        }
+    }
+
+    private long getStartOfDay(long timestamp) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(timestamp);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        return calendar.getTimeInMillis();
     }
 }

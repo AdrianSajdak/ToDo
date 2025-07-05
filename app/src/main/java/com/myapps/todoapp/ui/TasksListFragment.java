@@ -1,83 +1,70 @@
 package com.myapps.todoapp.ui;
 
-import android.content.Intent;
 import android.os.Bundle;
-
-import androidx.fragment.app.Fragment;
-
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.PopupMenu;
 
-import com.myapps.todoapp.MainActivity;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import com.myapps.todoapp.R;
-import com.myapps.todoapp.TaskDetailsActivity;
-import com.myapps.todoapp.data.model.Category;
-import com.myapps.todoapp.ui.dialog.AddCategoryDialogFragment;
+import com.myapps.todoapp.ui.adapter.TaskListAdapter;
 import com.myapps.todoapp.viewmodel.MainViewModel;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link TasksListFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
+
 public class TasksListFragment extends Fragment {
 
     private MainViewModel mainViewModel;
+    private RecyclerView recyclerView;
+    private TaskListAdapter adapter;
 
-    public TasksListFragment() {}
+    public static TasksListFragment newInstance() {
+        return new TasksListFragment();
+    }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_tasks_list, container, false);
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.fragment_tasks_list, container, false);
+
+        recyclerView = view.findViewById(R.id.recyclerView_tasks);
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+
+        return view;
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        mainViewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
+        mainViewModel = new ViewModelProvider(this).get(MainViewModel.class);
 
-        RecyclerView recyclerView = view.findViewById(R.id.recycler_view_categories);
-        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        recyclerView.setHasFixedSize(true);
+        adapter = new TaskListAdapter(new TaskListAdapter.TaskClickListener() {
+            @Override
+            public void onCategoryClick(long categoryId) {
+                mainViewModel.toggleCategoryExpansion(categoryId);
+            }
 
-        final CategoryAdapter adapter = new CategoryAdapter(mainViewModel, getViewLifecycleOwner());
+            @Override
+            public void onTaskClick(long taskId) {
+                mainViewModel.toggleTaskExpansion(taskId);
+            }
+
+            @Override
+            public void onTaskCompleted(long taskId, boolean isCompleted) {
+                mainViewModel.updateTaskCompletion(taskId, isCompleted);
+            }
+        });
+
         recyclerView.setAdapter(adapter);
 
-        mainViewModel.getAllCategories().observe(getViewLifecycleOwner(), adapter::setCategories);
-
-        FloatingActionButton fab = view.findViewById(R.id.fab_add);
-        fab.setOnClickListener(this::showPopupMenu);
-
-        setupAddCategoryResultListener();
-    }
-
-    private void showPopupMenu(View view) {
-        PopupMenu popup = new PopupMenu(this, view);
-        popup.getMenuInflater().inflate(R.menu.fab_menu, popup.getMenu());
-        popup.setOnMenuItemClickListener(item -> {
-            int itemId = item.getItemId();
-            if (itemId == R.id.action_add_category) {
-                new AddCategoryDialogFragment().show(getSupportFragmentManager(), AddCategoryDialogFragment.TAG);
-                return true;
-            } else if (itemId == R.id.action_add_task) {
-                Intent intent = new Intent(MainActivity.this, TaskDetailsActivity.class);
-                startActivity(intent);
-                return true;
-            }
-            return false;
-        });
-        popup.show();
-    }
-
-    private void setupAddCategoryResultListener() {
-        getSupportFragmentManager().setFragmentResultListener(AddCategoryDialogFragment.REQUEST_KEY, this, (requestKey, bundle) -> {
-            String categoryName = bundle.getString(AddCategoryDialogFragment.KEY_CATEGORY_NAME);
-            if (categoryName != null && !categoryName.isEmpty()) {
-                mainViewModel.insert(new Category(categoryName));
-            }
+        mainViewModel.getDisplayList().observe(getViewLifecycleOwner(), displayItems -> {
+            adapter.submitList(displayItems);
         });
     }
 }

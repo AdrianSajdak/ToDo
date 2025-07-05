@@ -5,15 +5,15 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
 import com.myapps.todoapp.data.model.Category;
 import com.myapps.todoapp.data.model.Task;
@@ -28,13 +28,13 @@ public class TaskDetailsActivity extends AppCompatActivity {
 
     private TaskDetailsViewModel viewModel;
     private TextInputEditText titleEditText, descriptionEditText;
-    private Spinner categorySpinner, prioritySpinner;
+    private AutoCompleteTextView categorySpinner, prioritySpinner;
     private Button deadlineButton, saveButton;
     private Calendar deadlineCalendar;
     private List<Category> categoryList;
-    private SwitchMaterial recurringSwitch;
-    private LinearLayout recurrenceOptionsLayout;
-    private Spinner recurrenceSpinner;
+    private MaterialSwitch recurringSwitch;
+    private LinearLayout recurrenceOptionsLayout, deadlineLayout;
+    private AutoCompleteTextView recurrenceSpinner;
 
 
     @Override
@@ -53,6 +53,7 @@ public class TaskDetailsActivity extends AppCompatActivity {
         recurringSwitch = findViewById(R.id.switch_recurring);
         recurrenceOptionsLayout = findViewById(R.id.layout_recurrence_options);
         recurrenceSpinner = findViewById(R.id.spinner_recurrence);
+        deadlineLayout = findViewById(R.id.layout_deadline);
 
         setupRecurrenceOptions();
 
@@ -61,34 +62,49 @@ public class TaskDetailsActivity extends AppCompatActivity {
         setupPrioritySpinner();
         setupCategorySpinner();
         setupDeadlinePicker();
+        setupToolbar();
 
         saveButton.setOnClickListener(v -> saveTask());
     }
 
+    private void setupToolbar() {
+        androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+        }
+        toolbar.setNavigationOnClickListener(v -> finish());
+    }
+
     private void setupRecurrenceOptions() {
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.recurrence_options, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        String[] recurrenceOptions = getResources().getStringArray(R.array.recurrence_options);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, 
+                android.R.layout.simple_dropdown_item_1line, recurrenceOptions);
         recurrenceSpinner.setAdapter(adapter);
 
         recurringSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             recurrenceOptionsLayout.setVisibility(isChecked ? View.VISIBLE : View.GONE);
+            deadlineLayout.setVisibility(isChecked ? View.GONE : View.VISIBLE);
         });
     }
 
     private void setupPrioritySpinner() {
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
-                R.array.priorities, android.R.layout.simple_spinner_item);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        String[] priorities = getResources().getStringArray(R.array.priorities);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line, priorities);
         prioritySpinner.setAdapter(adapter);
     }
 
     private void setupCategorySpinner() {
         viewModel.getAllCategories().observe(this, categories -> {
             this.categoryList = categories;
-            ArrayAdapter<Category> adapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_spinner_item, categories);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            String[] categoryNames = new String[categories.size()];
+            for (int i = 0; i < categories.size(); i++) {
+                categoryNames[i] = categories.get(i).getName();
+            }
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                    android.R.layout.simple_dropdown_item_1line, categoryNames);
             categorySpinner.setAdapter(adapter);
         });
     }
@@ -115,46 +131,135 @@ public class TaskDetailsActivity extends AppCompatActivity {
     }
 
     private void saveTask() {
-        String title = titleEditText.getText().toString().trim();
-        if (TextUtils.isEmpty(title)) {
-            Toast.makeText(this, "Tytuł zadania jest wymagany!", Toast.LENGTH_SHORT).show();
+        // Validate task title
+        if (!validateTaskTitle()) {
             return;
         }
-
-        Category selectedCategory = (Category) categorySpinner.getSelectedItem();
+        
+        // Validate category selection
+        Category selectedCategory = validateAndGetSelectedCategory();
         if (selectedCategory == null) {
-            Toast.makeText(this, "Proszę najpierw dodać kategorię!", Toast.LENGTH_SHORT).show();
             return;
         }
 
         Task newTask = new Task();
-        newTask.setTitle(title);
+        newTask.setTitle(titleEditText.getText().toString().trim());
         newTask.setDescription(descriptionEditText.getText().toString().trim());
         newTask.setCategoryId(selectedCategory.getId());
-        newTask.setPriority(prioritySpinner.getSelectedItemPosition());
+        
+        // Get priority from dropdown text
+        String priorityText = prioritySpinner.getText().toString();
+        String[] priorities = getResources().getStringArray(R.array.priorities);
+        int priorityIndex = 0;
+        for (int i = 0; i < priorities.length; i++) {
+            if (priorities[i].equals(priorityText)) {
+                priorityIndex = i;
+                break;
+            }
+        }
+        newTask.setPriority(priorityIndex);
         newTask.setCreationDate(System.currentTimeMillis());
 
-        if (deadlineButton.getText().toString().contains("/")) {
+        if (!recurringSwitch.isChecked() && deadlineButton.getText().toString().contains("/")) {
             newTask.setDeadline(deadlineCalendar.getTimeInMillis());
         }
 
         newTask.setCompleted(false);
         boolean isRecurring = recurringSwitch.isChecked();
         newTask.setRecurring(isRecurring);
+        
         if (isRecurring) {
-            // Zapisujemy regułę jako prosty tekst, np. "DAILY", "WEEKLY"
-            // W bardziej zaawansowanej wersji stworzylibyśmy bardziej złożony system reguł
+            // Get recurrence from dropdown text
+            String recurrenceText = recurrenceSpinner.getText().toString();
+            String[] recurrenceOptions = getResources().getStringArray(R.array.recurrence_options);
             String[] recurrenceValues = {"DAILY", "WEEKLY", "MONTHLY"};
-            newTask.setRecurrenceRule(recurrenceValues[recurrenceSpinner.getSelectedItemPosition()]);
-        } else {
-            // Zapisz deadline tylko dla zadań niecyklicznych
-            if (deadlineButton.getText().toString().contains("/")) {
-                newTask.setDeadline(deadlineCalendar.getTimeInMillis());
+            for (int i = 0; i < recurrenceOptions.length; i++) {
+                if (recurrenceOptions[i].equals(recurrenceText)) {
+                    newTask.setRecurrenceRule(recurrenceValues[i]);
+                    break;
+                }
             }
         }
 
         viewModel.insert(newTask);
         Toast.makeText(this, "Zadanie zapisane", Toast.LENGTH_SHORT).show();
         finish();
+    }
+    
+    /**
+     * Validates task title according to business rules
+     * @return true if title is valid, false otherwise
+     */
+    private boolean validateTaskTitle() {
+        String title = titleEditText.getText().toString().trim();
+        
+        // Check if title is empty
+        if (TextUtils.isEmpty(title)) {
+            titleEditText.setError("Tytuł zadania jest wymagany");
+            titleEditText.requestFocus();
+            Toast.makeText(this, "Tytuł zadania jest wymagany!", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        
+        // Check minimum length
+        if (title.length() < 3) {
+            titleEditText.setError("Tytuł musi mieć co najmniej 3 znaki");
+            titleEditText.requestFocus();
+            Toast.makeText(this, "Tytuł musi mieć co najmniej 3 znaki", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        
+        // Check maximum length
+        if (title.length() > 100) {
+            titleEditText.setError("Tytuł nie może być dłuższy niż 100 znaków");
+            titleEditText.requestFocus();
+            Toast.makeText(this, "Tytuł nie może być dłuższy niż 100 znaków", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        
+        // Clear any previous errors
+        titleEditText.setError(null);
+        return true;
+    }
+    
+    /**
+     * Validates category selection and returns selected category
+     * @return selected Category object if valid, null otherwise
+     */
+    private Category validateAndGetSelectedCategory() {
+        String selectedCategoryName = categorySpinner.getText().toString().trim();
+        
+        // Check if category is selected
+        if (TextUtils.isEmpty(selectedCategoryName)) {
+            categorySpinner.setError("Kategoria jest wymagana");
+            categorySpinner.requestFocus();
+            Toast.makeText(this, "Proszę wybrać kategorię!", Toast.LENGTH_SHORT).show();
+            return null;
+        }
+        
+        // Check if category exists in the list
+        if (categoryList == null || categoryList.isEmpty()) {
+            Toast.makeText(this, "Brak dostępnych kategorii. Proszę najpierw dodać kategorię!", Toast.LENGTH_LONG).show();
+            return null;
+        }
+        
+        Category selectedCategory = null;
+        for (Category category : categoryList) {
+            if (category.getName().equals(selectedCategoryName)) {
+                selectedCategory = category;
+                break;
+            }
+        }
+        
+        if (selectedCategory == null) {
+            categorySpinner.setError("Wybrana kategoria nie istnieje");
+            categorySpinner.requestFocus();
+            Toast.makeText(this, "Wybrana kategoria nie istnieje. Proszę wybrać kategorię z listy!", Toast.LENGTH_SHORT).show();
+            return null;
+        }
+        
+        // Clear any previous errors
+        categorySpinner.setError(null);
+        return selectedCategory;
     }
 }

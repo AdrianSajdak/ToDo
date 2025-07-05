@@ -6,12 +6,17 @@
 
     <fragment
         android:id="@+id/tasksListFragment"
-        android:name="com.twojanazwa.todoapp.ui.TasksListFragment"
-        android:label="fragment_tasks_list"
+        android:name="com.myapps.todoapp.ui.TasksListFragment"
+        android:label="Zadania"
         tools:layout="@layout/fragment_tasks_list" />
     <fragment
         android:id="@+id/doneTasksFragment"
         android:name="com.myapps.todoapp.ui.DoneTasksFragment"
-        android:label="fragment_done_tasks"
+        android:label="Wykonane"
         tools:layout="@layout/fragment_done_tasks" />
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.myapps.todoapp.ui.SettingsFragment"
+        android:label="Ustawienia"
+        tools:layout="@layout/fragment_settings" />
 </navigation>

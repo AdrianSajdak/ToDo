@@ -44,6 +44,9 @@ dependencies {
     def room_version = "2.6.1"
     implementation libs.room.runtime
     annotationProcessor "androidx.room:room-compiler:$room_version"
+    
+    // Dodanie Room Kotlin Extensions (opcjonalnie)
+    implementation "androidx.room:room-ktx:$room_version"
 
     def nav_version = "2.9.0"
     implementation "androidx.navigation:navigation-fragment:$nav_version"
@@ -51,7 +54,16 @@ dependencies {
 
     implementation libs.mpandroidchart
 
+    // Testing dependencies
     testImplementation libs.junit
+    testImplementation 'androidx.room:room-testing:2.6.1'
+    testImplementation 'androidx.arch.core:core-testing:2.2.0'
+    testImplementation 'org.mockito:mockito-core:5.1.1'
+    testImplementation 'org.mockito:mockito-inline:5.1.1'
+    testImplementation 'org.robolectric:robolectric:4.10.3'
+    
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+    androidTestImplementation 'androidx.room:room-testing:2.6.1'
+    androidTestImplementation 'androidx.arch.core:core-testing:2.2.0'
 }

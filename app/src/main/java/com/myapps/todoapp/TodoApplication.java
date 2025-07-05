@@ -17,24 +17,13 @@ public class TodoApplication extends Application {
     }
 
     private void scheduleRecurringTaskReset() {
-        // Uruchamiaj zadanie tylko gdy urządzenie jest bezczynne
-        Constraints constraints = new Constraints.Builder()
-                .setRequiresCharging(false)
-                .setRequiresDeviceIdle(true)
-                .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
-                .build();
-
-        // Uruchamiaj zadanie raz dziennie
         PeriodicWorkRequest resetRequest =
                 new PeriodicWorkRequest.Builder(RecurringTaskResetWorker.class, 1, TimeUnit.DAYS)
-                        .setConstraints(constraints)
                         .build();
 
-        // Użyj unikalnej nazwy, aby uniknąć wielokrotnego planowania tego samego zadania
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-                "recurring_task_reset_work",
-                ExistingPeriodicWorkPolicy.KEEP, // Zachowaj istniejące zadanie, jeśli już jest zaplanowane
-                resetRequest
-        );
+                "RecurringTaskReset",
+                ExistingPeriodicWorkPolicy.KEEP,
+                resetRequest);
     }
 }
